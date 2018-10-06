@@ -4,8 +4,6 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-from math import ceil
-
 class Lenet(object):
     def __init__(self, num_classes, data_format="NHWC", dtype=tf.float32):
         self.num_classes = num_classes
@@ -33,7 +31,8 @@ class Lenet(object):
                     name="conv",
                     data_format=self.data_format
                 )
-                network = tf.nn.sigmoid(tf.nn.bias_add(conv, biases))
+                network = tf.nn.sigmoid(
+                    tf.nn.bias_add(conv, biases), name="activations")
 
             with tf.variable_scope("s2"):
                 network = tf.nn.avg_pool(
@@ -57,7 +56,8 @@ class Lenet(object):
                     name="conv",
                     data_format=self.data_format
                 )
-                network = tf.nn.sigmoid(tf.nn.bias_add(conv, biases))
+                network = tf.nn.sigmoid(
+                    tf.nn.bias_add(conv, biases), name="activations")
 
             with tf.variable_scope("s4"):
                 network = tf.nn.avg_pool(
@@ -81,7 +81,8 @@ class Lenet(object):
                     name="conv",
                     data_format=self.data_format
                 )
-                network = tf.nn.sigmoid(tf.nn.bias_add(conv, biases))
+                network = tf.nn.sigmoid(
+                    tf.nn.bias_add(conv, biases), name="activations")
 
             with tf.variable_scope("f6"):
                 network = tf.squeeze(network)
@@ -90,7 +91,8 @@ class Lenet(object):
                 biases = tf.get_variable("biases", [84],
                     initializer=tf.zeros_initializer())
                 fc = tf.matmul(network, weights)
-                network = tf.nn.tanh(tf.nn.bias_add(fc, biases))
+                network = tf.nn.tanh(
+                    tf.nn.bias_add(fc, biases), name="activations")
                             
             with tf.variable_scope("logits"):
                 weights = tf.get_variable("weights", [84, self.num_classes],
