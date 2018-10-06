@@ -7,133 +7,186 @@ import tensorflow as tf
 NUM_CHANNELS = 3
 NUM_CLASSES = 1000
 
-def normalization_layer(inputs, k=2, n=5, alpha=0.0001, beta=0.75):
-    return tf.nn.local_response_normalization(
-        input=inputs,
-        depth_radius=n,
-        alpha=alpha,
-        beta=beta
-    )
-
-class Model(object):
-    def __init__(self, num_classes, data_format="channels_first", dtype=tf.float32):
+class Alexnet(object):
+    def __init__(self, num_classes, data_format="NHWC", dtype=tf.float32):
         self.num_classes = num_classes
         self.data_format = data_format
         self.dtype = dtype
 
+    def local_reponse_normalization_layer(self, inputs, k=2, n=5, alpha=0.0001, beta=0.75):
+        return tf.nn.local_response_normalization(
+            input=inputs,
+            depth_radius=n,
+            alpha=alpha,
+            beta=beta,
+            name="local_response_norm"
+        )
+
     def __call__(self, inputs, training):
         with tf.variable_scope("alexnet_model"):
-            inputs = tf.layers.conv2d(
-                inputs=inputs,
-                kernel_size=[11, 11],
-                filters=96,
-                strides=4,
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.zeros_initializer
-            )
-            inputs = tf.layers.max_pooling2d(
-                inputs=inputs,
-                pool_size=[3, 3],
-                strides=2
-            )
-            inputs = normalization_layer(inputs)
+            if self.data_format == "NCHW":
+                # Convert inputs from NHWC (channels_last) to NCHW
+                # Performance gains on GPU
+                inputs = tf.transpose(inputs, [0, 3, 1, 2])
 
-            inputs = tf.layers.conv2d(
-                inputs=inputs,
-                kernel_size=[5, 5],
-                filters=256,
-                strides=1,
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.ones_initializer
-            )
-            inputs = tf.layers.max_pooling2d(
-                inputs=inputs,
-                pool_size=[3, 3],
-                strides=2
-            )
-            inputs = normalization_layer(inputs)
+            network = None
+            with tf.variable_scope("conv1"):
+                kernel = tf.get_variable("weights", [11, 11, 3, 96],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [96],
+                    initializer=tf.zeros_initializer())
+                conv = tf.nn.convolution(
+                    input=inputs,
+                    filter=kernel,
+                    padding="VALID",
+                    strides=[4, 4],
+                    name="conv",
+                    data_format=self.data_format
+                )
+                network = tf.nn.relu(tf.nn.bias_add(
+                    conv, biases), name="activations")
 
-            inputs = tf.layers.conv2d(
-                inputs=inputs,
-                kernel_size=[3, 3],
-                filters=384,
-                padding="same",
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.zeros_initializer
-            )
+            with tf.variable_scope("pool1"):
+                network = tf.nn.max_pool(
+                    inputs=network,
+                    ksize=[1, 3, 3, 3],
+                    strides=[1, 2, 2, 3],
+                    padding="VALID",
+                    name="maxpool",
+                    data_format=self.data_format
+                )
 
-            inputs = tf.layers.conv2d(
-                inputs=inputs,
-                kernel_size=[3, 3],
-                filters=384,
-                padding="same",
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.ones_initializer
-            )
+            with tf.variable_scope("norm1"):
+                network = self.local_reponse_normalization_layer(
+                    inputs=network)
 
-            inputs = tf.layers.conv2d(
-                inputs=inputs,
-                kernel_size=[3, 3],
-                filters=256,
-                padding="same",
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.ones_initializer
-            )
+            with tf.variable_scope("conv2"):
+                kernel = tf.get_variable("weights", [5, 5, 96, 256],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [256],
+                    initializer=tf.ones_initializer())
+                conv = tf.nn.convolution(
+                    input=inputs,
+                    filter=kernel,
+                    padding="SAME",
+                    name="conv",
+                    data_format=self.data_format
+                )
+                network = tf.nn.relu(tf.nn.bias_add(
+                    conv, biases), name="activations")
 
-            inputs = tf.layers.max_pooling2d(
-                inputs=inputs,
-                pool_size=[3, 3],
-                strides=2
-            )
+            with tf.variable_scope("pool2"):
+                network = tf.nn.max_pool(
+                    inputs=network,
+                    ksize=[1, 3, 3, 3],
+                    strides=[1, 2, 2, 3],
+                    padding="VALID",
+                    name="maxpool",
+                    data_format=self.data_format
+                )
+            
+            with tf.variable_scope("norm2"):
+                network = self.local_reponse_normalization_layer(
+                    inputs=network)
 
-            inputs = tf.layers.dense(
-                inputs=inputs,
-                units=4096,
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.ones_initializer
-            )
-            inputs = tf.layers.dropout(
-                inputs=inputs,
-                training=training
-            )
+            with tf.variable_scope("conv3"):
+                kernel = tf.get_variable("weights", [3, 3, 256, 384],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [384],
+                    initializer=tf.zeros_initializer())
+                conv = tf.nn.convolution(
+                    input=inputs,
+                    filter=kernel,
+                    padding="SAME",
+                    name="conv",
+                    data_format=self.data_format
+                )
+                network = tf.nn.relu(tf.nn.bias_add(
+                    conv, biases), name="activations")
+            
+            with tf.variable_scope("conv4"):
+                kernel = tf.get_variable("weights", [3, 3, 384, 192],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [192],
+                    initializer=tf.ones_initializer())
+                conv = tf.nn.convolution(
+                    input=inputs,
+                    filter=kernel,
+                    padding="SAME",
+                    name="conv",
+                    data_format=self.data_format
+                )
+                network = tf.nn.relu(tf.nn.bias_add(
+                    conv, biases), name="activations")
 
-            inputs = tf.layers.dense(
-                inputs=inputs,
-                units=4096,
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.ones_initializer
-            )
-            inputs = tf.layers.dropout(
-                inputs=inputs,
-                training=training
-            )
+            with tf.variable_scope("conv5"):
+                kernel = tf.get_variable("weights", [3, 3, 192, 256],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [256],
+                    initializer=tf.ones_initializer())
+                conv = tf.nn.convolution(
+                    input=inputs,
+                    filter=kernel,
+                    padding="SAME",
+                    name="conv",
+                    data_format=self.data_format
+                )
+                network = tf.nn.relu(tf.nn.bias_add(
+                    conv, biases), name="activations")
+            
+            with tf.variable_scope("pool3"):
+                network = tf.nn.max_pool(
+                    inputs=network,
+                    ksize=[1, 3, 3, 3],
+                    strides=[1, 2, 2, 3],
+                    padding="VALID",
+                    name="maxpool",
+                    data_format=self.data_format
+                )
 
-            inputs = tf.layers.dense(
-                inputs=inputs,
-                units=self.num_classes,
-                kernel_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.01),
-                bias_initializer=tf.zeros_initializer
-            )
+            with tf.variable_scope("fc1"):
+                shape = network.get_shape().as_list()
+                dim = shape[0] * shape[1] * shape[2] * shape[3]
+                reshape = tf.reshape(network, [dim])
+                weights = tf.get_variable("weights", [dim, 2048],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [2048],
+                    initializer=tf.ones_initializer())
+                network = tf.matmul(network, weights)
+                network = tf.nn.relu(
+                    tf.nn.bias_add(network, biases), name="activations")
+                network = tf.nn.dropout(network, keep_prob=0.5)
+            
+            with tf.variable_scope("fc2"):
+                weights = tf.get_variable("weights", [2048, 2048],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [2048],
+                    initializer=tf.ones_initializer())
+                network = tf.matmul(network, weights)
+                network = tf.nn.relu(
+                    tf.nn.bias_add(network, biases), name="activations")
+                network = tf.nn.dropout(network, keep_prob=0.5)
+            
+            with tf.variable_scope("logits"):
+                weights = tf.get_variable("weights", [2048, self.num_classes],
+                    initializer=tf.random_normal_initializer())
+                biases = tf.get_variable("biases", [self.num_classes],
+                    initializer=tf.ones_initializer())
+                network = tf.nn.bias_add(tf.matmul(network, weights), biases)
 
-            return inputs
+        return network
+    
 
 def alexnet_model_fn(features, labels, mode, model_class, momentum=0.9,
                      learning_rate=0.01, weight_decay=0.0005):
     model = model_class(num_classes=NUM_CLASSES)
-    
+
     logits = model(features, mode == tf.estimator.ModeKeys.TRAIN)
     logits = tf.cast(logits, tf.float32)
     predictions = {
         "classes": tf.argmax(input=logits, axis=1),
         "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
-        }
+    }
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(
@@ -142,14 +195,14 @@ def alexnet_model_fn(features, labels, mode, model_class, momentum=0.9,
             export_outputs={
                 "predict": tf.estimator.export.PredictOutput(predictions)
             })
-    
+
     cross_entropy = tf.losses.sparse_softmax_cross_entropy(
-      logits=logits, labels=labels)
+        logits=logits, labels=labels)
     tf.identity(cross_entropy, name="cross_entropy")
     tf.summary.scalar("cross_entropy", cross_entropy)
 
     l2_loss = weight_decay * tf.add_n(
-      [tf.nn.l2_loss(tf.cast(v, tf.float32)) for v in tf.trainable_variables()])
+        [tf.nn.l2_loss(tf.cast(v, tf.float32)) for v in tf.trainable_variables()])
     tf.summary.scalar("l2_loss", l2_loss)
     loss = cross_entropy + l2_loss
 
