@@ -10,7 +10,7 @@ from lenet import lenet_model
 BATCH_SIZE = 32
 IMAGE_SIZE = 32
 NUM_CHANNELS = 1
-NUM_LABELS = 10
+NUM_CLASSES = 10
 NUM_EPOCHS = 10
 VALIDATION_SIZE = 5000
 EVAL_BATCH_SIZE = 64
@@ -60,16 +60,33 @@ def main(unused_argv):
         tf.float32,
         shape=[EVAL_BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, NUM_CHANNELS])
     
-    build_lenet = lenet_model.Lenet(10)
+    build_lenet = lenet_model.Lenet(NUM_CLASSES)
     logits = build_lenet(train_input, True)
-    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=train_labels, logits=logits, name="loss")
+    loss = tf.reduce_mean(
+        tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels=train_labels, logits=logits, name="loss"))
+    optimizer = tf.train.MomentumOptimizer(
+        learning_rate=0.01, momentum=0.9).minimize(loss)
+    
+    train_prediction = tf.nn.softmax(logits)
+    train_size = x_train.shape[0]
 
     with tf.Session() as sess:
         writer = tf.summary.FileWriter("/tmp/log/...", sess.graph)
         # Run all initializers
         tf.global_variables_initializer().run()
-        print(sess.run(loss, {train_input: np.expand_dims(
-            x_train, -1)}))
+        for step in range(int(NUM_EPOCHS * train_size) // BATCH_SIZE):
+            # Compute the offset of the current minibatch in the data.
+            # Note that we could use better randomization across epochs.
+            offset = (step * BATCH_SIZE) % (train_size - BATCH_SIZE)
+            batch_data = x_train[offset:(offset + BATCH_SIZE), ...]
+            batch_labels = y_train[offset:(offset + BATCH_SIZE)]
+            
+            feed_dict = {train_input: np.expand_dims(batch_data, -1),
+                         train_labels: batch_labels}
+            sess.run(optimizer, feed_dict=feed_dict)
+            if step % 1000 == 0:
+                print(sess.run(loss, feed_dict=feed_dict))
 
 if __name__ == "__main__":
     tf.app.run()
