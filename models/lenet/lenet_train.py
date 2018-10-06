@@ -4,6 +4,8 @@ from __future__ import print_function
 
 import tensorflow as tf
 
+from lenet_model import Lenet
+
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string("model_dir", "/tmp/imagenet_train",

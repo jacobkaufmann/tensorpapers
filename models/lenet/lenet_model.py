@@ -84,12 +84,12 @@ class Lenet(object):
                 network = tf.nn.sigmoid(tf.nn.bias_add(conv, biases))
 
             with tf.variable_scope("f6"):
-                inputs = tf.squeeze(network)
+                network = tf.squeeze(network)
                 weights = tf.get_variable("weights", [120, 84],
                     initializer=tf.random_normal_initializer())
                 biases = tf.get_variable("biases", [84],
                     initializer=tf.zeros_initializer())
-                fc = tf.matmul(inputs, weights)
+                fc = tf.matmul(network, weights)
                 network = tf.nn.tanh(tf.nn.bias_add(fc, biases))
                             
             with tf.variable_scope("logits"):
