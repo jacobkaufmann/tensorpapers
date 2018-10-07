@@ -49,8 +49,8 @@ class Alexnet(object):
             with tf.variable_scope("pool1"):
                 network = tf.nn.max_pool(
                     inputs=network,
-                    ksize=[1, 3, 3, 3],
-                    strides=[1, 2, 2, 3],
+                    ksize=[1, 3, 3, 1],
+                    strides=[1, 2, 2, 1],
                     padding="VALID",
                     name="maxpool",
                     data_format=self.data_format
@@ -78,8 +78,8 @@ class Alexnet(object):
             with tf.variable_scope("pool2"):
                 network = tf.nn.max_pool(
                     inputs=network,
-                    ksize=[1, 3, 3, 3],
-                    strides=[1, 2, 2, 3],
+                    ksize=[1, 3, 3, 1],
+                    strides=[1, 2, 2, 1],
                     padding="VALID",
                     name="maxpool",
                     data_format=self.data_format
@@ -137,8 +137,8 @@ class Alexnet(object):
             with tf.variable_scope("pool3"):
                 network = tf.nn.max_pool(
                     inputs=network,
-                    ksize=[1, 3, 3, 3],
-                    strides=[1, 2, 2, 3],
+                    ksize=[1, 3, 3, 1],
+                    strides=[1, 2, 2, 1],
                     padding="VALID",
                     name="maxpool",
                     data_format=self.data_format
@@ -155,7 +155,8 @@ class Alexnet(object):
                 network = tf.matmul(network, weights)
                 network = tf.nn.relu(
                     tf.nn.bias_add(network, biases), name="activations")
-                network = tf.nn.dropout(network, keep_prob=0.5)
+                if training:
+                    network = tf.nn.dropout(network, keep_prob=0.5)
             
             with tf.variable_scope("fc2"):
                 weights = tf.get_variable("weights", [2048, 2048],
@@ -165,7 +166,8 @@ class Alexnet(object):
                 network = tf.matmul(network, weights)
                 network = tf.nn.relu(
                     tf.nn.bias_add(network, biases), name="activations")
-                network = tf.nn.dropout(network, keep_prob=0.5)
+                if training:
+                    network = tf.nn.dropout(network, keep_prob=0.5)
             
             with tf.variable_scope("logits"):
                 weights = tf.get_variable("weights", [2048, self.num_classes],
