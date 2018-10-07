@@ -7,7 +7,7 @@ import tensorflow as tf
 NUM_CHANNELS = 3
 NUM_CLASSES = 1000
 
-class VGG(object):
+class Vgg(object):
     def __init__(self, num_classes, version=16, data_format="NCHW", dtype=tf.float32):
         self.num_classes = num_classes
         self.version = version
@@ -39,8 +39,7 @@ class VGG(object):
         return tf.nn.max_pool(
             inputs=inputs,
             ksize=[1, 2, 2, 1],
-            pool_size=[1, 2, 2, 1],
-            strides=2,
+            strides=[1, 2, 2, 1],
             padding="VALID",
             name=name,
             data_format=self.data_format
@@ -102,8 +101,10 @@ class VGG(object):
                 biases = tf.get_variable("biases", [4096],
                     initializer=tf.zeros_initializer())
                 network = tf.matmul(network, weights)
-                network = tf.nn.tanh(tf.nn.bias_add(network, biases))
-                network = tf.nn.dropout(network, keep_prob=0.5)
+                network = tf.nn.tanh(
+                    tf.nn.bias_add(network, biases), name="activations")
+                if training:
+                    network = tf.nn.dropout(network, keep_prob=0.5)
 
             with tf.variable_scope("fc2"):
                 weights = tf.get_variable("weights", [4096, 4096],
@@ -111,8 +112,10 @@ class VGG(object):
                 biases = tf.get_variable("biases", [4096],
                     initializer=tf.zeros_initializer())
                 network = tf.matmul(network, weights)
-                network = tf.nn.tanh(tf.nn.bias_add(network, biases))
-                network = tf.nn.dropout(network, keep_prob=0.5)
+                network = tf.nn.tanh(
+                    tf.nn.bias_add(network, biases), name="activations")
+                if training:
+                    network = tf.nn.dropout(network, keep_prob=0.5)
 
             with tf.variable_scope("logits"):
                 weights = tf.get_variable("weights", [4096, self.num_classes],
