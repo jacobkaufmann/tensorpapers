@@ -8,23 +8,106 @@ NUM_CHANNELS = 3
 NUM_CLASSES = 1000
 
 class GoogLeNet(object):
-    def __init__(self, num_classes, data_format="NHWC", dtype=tf.float32):
+    def __init__(self, num_classes, data_format="channels_last", dtype=tf.float32):
         self.num_classes = num_classes
         self.data_format = data_format
         self.dtype = dtype
 
-    class InceptionModule(tf.keras.layers.Layer):
-        """Inception module as a subclass of keras.layers.Layer
-        """
-        pass
-
-    def inception_module(self, inputs, name):
+    def inception_module(self, inputs, data_format, filters1x1,
+        filters3x3_reduce, filters3x3, filters5x5_reduce, filters5x5,
+        pool_proj, name):
         """Inception module as a function
         """
         with tf.variable_scope(name):
-            pass
+            with tf.variable_scope("branch_1x1"):
+                branch1x1 = tf.layers.Conv2D(
+                    inputs=inputs,
+                    filters=filters1x1,
+                    kernel_size=(1,1),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    activation=tf.nn.relu,
+                    name="conv"
+                )
 
-    def local_reponse_normalization_layer(self, inputs, k=2, n=5, alpha=0.0001, beta=0.75):
+            with tf.variable_scope("branch_3x3"):
+                branch3x3 = tf.layers.Conv2D(
+                    inputs=inputs,
+                    filters=filters3x3_reduce,
+                    kernel_size=(1,1),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    activation=tf.nn.relu,
+                    name="reduce"
+                )
+                branch3x3 = tf.layers.Conv2D(
+                    inputs=branch3x3,
+                    filters=filters3x3,
+                    kernel_size=(1,1),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    activation=tf.nn.relu,
+                    name="conv"
+                )
+            
+            with tf.variable_scope("branch_5x5"):
+                branch5x5 = tf.layers.Conv2D(
+                    inputs=inputs,
+                    filters=filters5x5_reduce,
+                    kernel_size=(1,1),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    activation=tf.nn.relu,
+                    name="reduce"
+                )
+                branch5x5 = tf.layers.Conv2D(
+                    inputs=branch5x5,
+                    filters=filters5x5,
+                    kernel_size=(5,5),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    activation=tf.nn.relu,
+                    name="conv"
+                )
+
+            with tf.variable_scope("branch_pool"):
+                branch_pool = tf.layers.MaxPooling2D(
+                    inputs=inputs,
+                    pool_size=(3,3),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    name="pool"
+                )
+                branch_pool = tf.layers.Conv2D(
+                    inputs=branch_pool,
+                    filters=pool_proj,
+                    kernel_size=(1,1),
+                    strides=(1,1),
+                    padding="same",
+                    data_format=data_format,
+                    activation=tf.nn.relu,
+                    name="conv"
+                )
+
+            branches = [branch1x1, branch3x3, branch5x5, branch_pool]
+            if data_format == "channels_last":
+                return tf.concat(concat_dim=3, values=branches)
+            else:
+                return tf.concat(concat_dim=1, values=branches)
+
+    def auxiliary_unit(self, inputs, name):
+        pass
+
+    def local_reponse_normalization_layer(self, inputs, name, k=2, n=5, 
+        alpha=0.0001, beta=0.75):
+        """Reusable local response normalization layer
+        """
         return tf.nn.local_response_normalization(
             input=inputs,
             depth_radius=n,
@@ -33,88 +116,76 @@ class GoogLeNet(object):
             name="local_response_norm"
         )
 
-    def reduction_layer(self, inputs, filters):
-        with tf.variable_scope("reduction"):
-            kernel = tf.get_variable(
-                "weights",
-                [1, 1, tf.shape(inputs)[3], filters],
-                initializer=tf.glorot_uniform_initializer())
-            biases = tf.get_variable("biases", [filters],
-                initializer=tf.ones_initializer())
-            conv = tf.nn.convolution(
-                input=inputs,
-                filter=kernel,
-                padding="VALID",
-                strides=[1, 1],
-                name="conv",
-                data_format=self.data_format
-            )
-            return tf.nn.relu(
-                tf.nn.bias_add(conv, biases), name="activations")
-
     def __call__(self, inputs, training):
         with tf.variable_scope("googlenet_model"):
-            if self.data_format == "NCHW":
-                # Convert inputs from NHWC (channels_last) to NCHW
+            if self.data_format == "channels_first":
+                # Convert inputs from channels_last to channels_first
                 # Performance gains on GPU
                 inputs = tf.transpose(inputs, [0, 3, 1, 2])
 
-            network = None
-            with tf.variable_scope("conv1"):
-                kernel = tf.get_variable("weights", [7, 7, 3, 64],
-                    initializer=tf.glorot_uniform_initializer())
-                biases = tf.get_variable("biases", [64],
-                    initializer=tf.ones_initializer())
-                conv = tf.nn.convolution(
-                    input=inputs,
-                    filter=kernel,
-                    padding="VALID",
-                    strides=[2, 2],
-                    name="conv",
-                    data_format=self.data_format
-                )
-                network = tf.nn.relu(
-                    tf.nn.bias_add(conv, biases), name="activations")
-            
-            with tf.variable_scope("pool1"):
-                network = tf.nn.max_pool(
-                    input=network,
-                    ksize=[1, 3, 3, 1],
-                    strides=[1, 2, 2, 1],
-                    padding="VALID",
-                    name="maxpool",
-                    data_format=self.data_format
-                )
+            network = tf.layers.Conv2D(
+                inputs=inputs,
+                filters=64,
+                kernel_size=(7,7),
+                strides=(2, 2),
+                padding="valid",
+                data_format="channels_last",
+                activation=tf.nn.relu,
+                name="conv1"
+            )
+            network = tf.layers.MaxPooling2D(
+                inputs=network,
+                pool_size=(3,3),
+                strides=(2,2),
+                padding="valid",
+                data_format="channels_last",
+                name="pool1"
+            )
+            network = self.local_reponse_normalization_layer(
+                inputs=network,
+                name="norm1"
+            )
 
-            with tf.variable_scope("norm1"):
-                network = self.local_reponse_normalization_layer(network)
+            network = tf.layers.Conv2D(
+                inputs=network,
+                filters=64,
+                kernel_size=(1,1),
+                strides=(1,1),
+                padding="valid",
+                data_format="channels_last",
+                activation=tf.nn.relu,
+                name="conv2_reduce"
+            )
+            network = tf.layers.Conv2D(
+                inputs=network,
+                filters=192,
+                kernel_size=(7,7),
+                strides=(1, 1),
+                padding="same",
+                data_format="channels_last",
+                activation=tf.nn.relu,
+                name="conv2"
+            )
+            network = self.local_reponse_normalization_layer(
+                inputs=network,
+                name="norm2"
+            )
+            network = tf.layers.MaxPooling2D(
+                inputs=network,
+                pool_size=(3,3),
+                strides=(2,2),
+                padding="valid",
+                data_format="channels_last",
+                name="pool2"
+            )
 
-            with tf.variable_scope("conv2"):
-                network = self.reduction_layer(network, 64)
-                kernel = tf.get_variable("weights", [3, 3, 64, 192],
-                    initializer=tf.glorot_uniform_initializer())
-                biases = tf.get_variable("biases", [192],
-                    initializer=tf.ones_initializer())
-                conv = tf.nn.convolution(
-                    input=network,
-                    filter=kernel,
-                    padding="VALID",
-                    strides=[1, 1],
-                    name="conv",
-                    data_format=self.data_format
-                )
-                network = tf.nn.relu(
-                    tf.nn.bias_add(conv, biases), name="activations")
-
-            with tf.variable_scope("norm2"):
-                network = self.local_reponse_normalization_layer(network)
-
-            with tf.variable_scope("pool2"):
-                network = tf.nn.max_pool(
-                    input=network,
-                    ksize=[1, 3, 3, 1],
-                    strides=[1, 2, 2, 1],
-                    padding="VALID",
-                    name="maxpool",
-                    data_format=self.data_format
-                )
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=64,
+                filters3x3_reduce=96,
+                filters3x3=128,
+                filters5x5_reduce=16,
+                filters5x5=32,
+                pool_proj=32,
+                name="module_3a")
