@@ -101,8 +101,45 @@ class GoogLeNet(object):
             else:
                 return tf.concat(concat_dim=1, values=branches)
 
-    def auxiliary_unit(self, inputs, name):
-        pass
+    def auxiliary_network(self, inputs, data_format, name):
+        """Auxiliary classifier
+        """
+        with tf.variable_scope(name):
+            aux_network = tf.layers.AveragePooling2D(
+                inputs=inputs,
+                pool_size=(5,5),
+                strides=(3,3),
+                padding="valid",
+                data_format="channels_last",
+                name="avg_pool"
+            )
+            aux_network = tf.layers.Conv2D(
+                inputs=aux_network,
+                filters=128,
+                kernel_size=(1,1),
+                strides=(1,1),
+                padding="same",
+                data_format=data_format,
+                activation=tf.nn.relu,
+                name="conv"
+            )
+            aux_network = tf.layers.Dense(
+                inputs=aux_network,
+                units=1024,
+                activation=tf.nn.relu,
+                name="fc"
+            )
+            aux_network = tf.layers.Dropout(
+                inputs=aux_network,
+                rate=0.7
+            )
+            aux_network = tf.layers.Dense(
+                inputs=aux_network,
+                units=self.num_classes,
+                activation=None,
+                name="logits"
+            )
+            return aux_network
 
     def local_reponse_normalization_layer(self, inputs, name, k=2, n=5, 
         alpha=0.0001, beta=0.75):
@@ -127,7 +164,7 @@ class GoogLeNet(object):
                 inputs=inputs,
                 filters=64,
                 kernel_size=(7,7),
-                strides=(2, 2),
+                strides=(2,2),
                 padding="valid",
                 data_format="channels_last",
                 activation=tf.nn.relu,
@@ -188,4 +225,160 @@ class GoogLeNet(object):
                 filters5x5_reduce=16,
                 filters5x5=32,
                 pool_proj=32,
-                name="module_3a")
+                name="module_3a"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=128,
+                filters3x3_reduce=128,
+                filters3x3=192,
+                filters5x5_reduce=32,
+                filters5x5=96,
+                pool_proj=64,
+                name="module_3b"
+            )
+
+            network = tf.layers.MaxPooling2D(
+                inputs=network,
+                pool_size=(3,3),
+                strides=(2,2),
+                padding="valid",
+                data_format="channels_last",
+                name="pool3"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=192,
+                filters3x3_reduce=96,
+                filters3x3=208,
+                filters5x5_reduce=16,
+                filters5x5=48,
+                pool_proj=64,
+                name="module_4a"
+            )
+
+            aux_logits1 = self.auxiliary_network(
+                inputs=network,
+                data_format="channels_last",
+                name="auxiliary_classifier1"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=160,
+                filters3x3_reduce=112,
+                filters3x3=224,
+                filters5x5_reduce=24,
+                filters5x5=64,
+                pool_proj=64,
+                name="module_4b"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=128,
+                filters3x3_reduce=128,
+                filters3x3=256,
+                filters5x5_reduce=24,
+                filters5x5=64,
+                pool_proj=64,
+                name="module_4c"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=112,
+                filters3x3_reduce=144,
+                filters3x3=288,
+                filters5x5_reduce=32,
+                filters5x5=64,
+                pool_proj=64,
+                name="module_4d"
+            )
+
+            aux_logits2 = self.auxiliary_network(
+                inputs=network,
+                data_format="channels_last",
+                name="auxiliary_classifier2"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=256,
+                filters3x3_reduce=160,
+                filters3x3=320,
+                filters5x5_reduce=32,
+                filters5x5=128,
+                pool_proj=128,
+                name="module_4e"
+            )
+
+            network = tf.layers.MaxPooling2D(
+                inputs=network,
+                pool_size=(3,3),
+                strides=(2,2),
+                padding="valid",
+                data_format="channels_last",
+                name="pool4"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=256,
+                filters3x3_reduce=160,
+                filters3x3=320,
+                filters5x5_reduce=32,
+                filters5x5=128,
+                pool_proj=128,
+                name="module_5a"
+            )
+
+            network = self.inception_module(
+                inputs=network,
+                data_format="channels_last",
+                filters1x1=384,
+                filters3x3_reduce=192,
+                filters3x3=384,
+                filters5x5_reduce=48,
+                filters5x5=128,
+                pool_proj=128,
+                name="module_5b"
+            )
+
+            network = tf.layers.AveragePooling2D(
+                inputs=network,
+                pool_size=(7,7),
+                strides=(1,1),
+                padding="valid",
+                data_format="channels_last",
+                name="pool5"
+            )
+            network = tf.layers.Dropout(
+                inputs=network,
+                rate=0.4
+            )
+
+            network = tf.layers.Dense(
+                inputs=network,
+                units=1000,
+                activation=tf.nn.relu,
+                name="fc"
+            )
+
+            network = tf.layers.Dense(
+                inputs=network,
+                units=self.num_classes,
+                activation=None,
+                name="logits"
+            )
+
+            return network
