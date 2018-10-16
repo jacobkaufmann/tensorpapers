@@ -110,7 +110,7 @@ class GoogLeNet(object):
                 pool_size=(5,5),
                 strides=(3,3),
                 padding="valid",
-                data_format="channels_last",
+                data_format=data_format,
                 name="avg_pool"
             )
             aux_network = tf.layers.Conv2D(
