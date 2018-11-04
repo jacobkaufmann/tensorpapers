@@ -20,7 +20,7 @@ class GoogLeNet(object):
         """
         with tf.variable_scope(name):
             with tf.variable_scope("branch_1x1"):
-                branch1x1 = tf.layers.Conv2D(
+                branch1x1 = tf.layers.conv2d(
                     inputs=inputs,
                     filters=filters1x1,
                     kernel_size=(1,1),
@@ -32,7 +32,7 @@ class GoogLeNet(object):
                 )
 
             with tf.variable_scope("branch_3x3"):
-                branch3x3 = tf.layers.Conv2D(
+                branch3x3 = tf.layers.conv2d(
                     inputs=inputs,
                     filters=filters3x3_reduce,
                     kernel_size=(1,1),
@@ -42,7 +42,7 @@ class GoogLeNet(object):
                     activation=tf.nn.relu,
                     name="reduce"
                 )
-                branch3x3 = tf.layers.Conv2D(
+                branch3x3 = tf.layers.conv2d(
                     inputs=branch3x3,
                     filters=filters3x3,
                     kernel_size=(1,1),
@@ -54,7 +54,7 @@ class GoogLeNet(object):
                 )
             
             with tf.variable_scope("branch_5x5"):
-                branch5x5 = tf.layers.Conv2D(
+                branch5x5 = tf.layers.conv2d(
                     inputs=inputs,
                     filters=filters5x5_reduce,
                     kernel_size=(1,1),
@@ -64,7 +64,7 @@ class GoogLeNet(object):
                     activation=tf.nn.relu,
                     name="reduce"
                 )
-                branch5x5 = tf.layers.Conv2D(
+                branch5x5 = tf.layers.conv2d(
                     inputs=branch5x5,
                     filters=filters5x5,
                     kernel_size=(5,5),
@@ -76,7 +76,7 @@ class GoogLeNet(object):
                 )
 
             with tf.variable_scope("branch_pool"):
-                branch_pool = tf.layers.MaxPooling2D(
+                branch_pool = tf.layers.max_pooling2d(
                     inputs=inputs,
                     pool_size=(3,3),
                     strides=(1,1),
@@ -84,7 +84,7 @@ class GoogLeNet(object):
                     data_format=data_format,
                     name="pool"
                 )
-                branch_pool = tf.layers.Conv2D(
+                branch_pool = tf.layers.conv2d(
                     inputs=branch_pool,
                     filters=pool_proj,
                     kernel_size=(1,1),
@@ -105,7 +105,7 @@ class GoogLeNet(object):
         """Auxiliary classifier
         """
         with tf.variable_scope(name):
-            aux_network = tf.layers.AveragePooling2D(
+            aux_network = tf.layers.average_pooling2d(
                 inputs=inputs,
                 pool_size=(5,5),
                 strides=(3,3),
@@ -113,7 +113,7 @@ class GoogLeNet(object):
                 data_format=data_format,
                 name="avg_pool"
             )
-            aux_network = tf.layers.Conv2D(
+            aux_network = tf.layers.conv2d(
                 inputs=aux_network,
                 filters=128,
                 kernel_size=(1,1),
@@ -123,17 +123,17 @@ class GoogLeNet(object):
                 activation=tf.nn.relu,
                 name="conv"
             )
-            aux_network = tf.layers.Dense(
+            aux_network = tf.layers.dense(
                 inputs=aux_network,
                 units=1024,
                 activation=tf.nn.relu,
                 name="fc"
             )
-            aux_network = tf.layers.Dropout(
+            aux_network = tf.layers.dropout(
                 inputs=aux_network,
                 rate=0.7
             )
-            aux_network = tf.layers.Dense(
+            aux_network = tf.layers.dense(
                 inputs=aux_network,
                 units=self.num_classes,
                 activation=None,
@@ -160,7 +160,7 @@ class GoogLeNet(object):
                 # Performance gains on GPU
                 inputs = tf.transpose(inputs, [0, 3, 1, 2])
 
-            network = tf.layers.Conv2D(
+            network = tf.layers.conv2d(
                 inputs=inputs,
                 filters=64,
                 kernel_size=(7,7),
@@ -170,7 +170,7 @@ class GoogLeNet(object):
                 activation=tf.nn.relu,
                 name="conv1"
             )
-            network = tf.layers.MaxPooling2D(
+            network = tf.layers.max_pooling2d(
                 inputs=network,
                 pool_size=(3,3),
                 strides=(2,2),
@@ -183,7 +183,7 @@ class GoogLeNet(object):
                 name="norm1"
             )
 
-            network = tf.layers.Conv2D(
+            network = tf.layers.conv2d(
                 inputs=network,
                 filters=64,
                 kernel_size=(1,1),
@@ -193,7 +193,7 @@ class GoogLeNet(object):
                 activation=tf.nn.relu,
                 name="conv2_reduce"
             )
-            network = tf.layers.Conv2D(
+            network = tf.layers.conv2d(
                 inputs=network,
                 filters=192,
                 kernel_size=(7,7),
@@ -207,7 +207,7 @@ class GoogLeNet(object):
                 inputs=network,
                 name="norm2"
             )
-            network = tf.layers.MaxPooling2D(
+            network = tf.layers.max_pooling2d(
                 inputs=network,
                 pool_size=(3,3),
                 strides=(2,2),
@@ -240,7 +240,7 @@ class GoogLeNet(object):
                 name="module_3b"
             )
 
-            network = tf.layers.MaxPooling2D(
+            network = tf.layers.max_pooling2d(
                 inputs=network,
                 pool_size=(3,3),
                 strides=(2,2),
@@ -321,7 +321,7 @@ class GoogLeNet(object):
                 name="module_4e"
             )
 
-            network = tf.layers.MaxPooling2D(
+            network = tf.layers.max_pooling2d(
                 inputs=network,
                 pool_size=(3,3),
                 strides=(2,2),
@@ -354,7 +354,7 @@ class GoogLeNet(object):
                 name="module_5b"
             )
 
-            network = tf.layers.AveragePooling2D(
+            network = tf.layers.average_pooling2d(
                 inputs=network,
                 pool_size=(7,7),
                 strides=(1,1),
@@ -362,19 +362,19 @@ class GoogLeNet(object):
                 data_format="channels_last",
                 name="pool5"
             )
-            network = tf.layers.Dropout(
+            network = tf.layers.dropout(
                 inputs=network,
                 rate=0.4
             )
 
-            network = tf.layers.Dense(
+            network = tf.layers.dense(
                 inputs=network,
                 units=1000,
                 activation=tf.nn.relu,
                 name="fc"
             )
 
-            network = tf.layers.Dense(
+            network = tf.layers.dense(
                 inputs=network,
                 units=self.num_classes,
                 activation=None,
